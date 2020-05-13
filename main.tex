@@ -314,7 +314,7 @@ By default, collisions between robots are \textit{not} considered!
 
 \section{The Autonomy Pipeline}
 
-The Astrobee GNC is divided into a few main packages: CTL (control), EKF (estimation), and FAM (force allocation module/mixer), along with packages for localization and planning. Locating the source files and identifying their inputs and outputs is key to making low-level modifications to Astrobee's autonomy software. By default, Astrobee launches a set of control and estimation nodelets (keywords: ctl, ekf, fam) on the LLP. See LLP.launch. Some higher-level nodes are launched on the MLP. See MLP.launch.
+The Astrobee GNC is divided into a few main packages: CTL (control), EKF (estimation), and FAM (force allocation module/mixer), along with packages for localization and planning. Locating the source files and identifying their inputs and outputs is key to making low-level modifications to Astrobee's autonomy software. By default, Astrobee launches a set of control and estimation nodelets (keywords: ctl, ekf, fam) on the LLP. (See LLP.launch.) Some higher-level nodes are launched on the MLP. (See MLP.launch.)
 
 \subsection{Locations of Key Parts of the Autonomy Pipeline}
 \begin{itemize}
@@ -411,23 +411,63 @@ ctl.cc actually sets the force/torque values to take, `hw/pmc/command` gives the
 
 The choreographer's flight\_mode message is used by FAM to determine PMC speed (see fam.cc). Actual actuation occurs in pmc\_actuator\_tool.cc. pmc\_actuator\_nodelet.cc is the real coordinator. Lots of complicated low-level commanding occurs there.
 
-FAM defaults to a nominal fan setting in the following lines in fam.cc. It is not yet clear how to override these, but if you comment them you can directly command without having to do workarounds:
+FAM defaults to a nominal fan setting in the following lines in fam.cc:
+
 ~~~~
 // {
 //   std::lock_guard<std::mutex> lock(mutex_speed_);
 //   // Overwrite the speed command with the cached value, provided
 //   // through the flight mode message offered by the choreographer
 //   cmd->speed_gain_cmd = speed_;
-// } MODIFIED!
+// }
  ~~~~
+ 
+You can set this nominal fan setting using flight\_mode, as follows:
+
+~~~~
+ros::Publisher pub_flight_mode_;
+ff_msgs::FlightMode flight_mode_;
+std::string flight_mode_name_ = "nominal";  // FlightMode to enter
+
+ff_util::FlightUtil::GetFlightMode(flight_mode_, flight_mode_name_)
+pub_flight_mode_ = nh->advertise<ff_msgs::FlightMode>(TOPIC_MOBILITY_FLIGHT_MODE, 1, true);
+pub_flight_mode_.publish(flight_mode_);// Publish default flight mode
+~~~~
 \end{markdown}
 
 \subsection{Overiding the Estimator (EKF)}
 
-This has yet to be done, but it is possible to run other estimators simultaneously (e.g. a parameter estimator using RLSE). You can do what you wish with the results of additional computation.
+It is possible to run other estimators simultaneously (e.g. a parameter estimator using RLSE) or to replace the default estimator entirely. You can do what you wish with the results of additional computation.
 
-TODO: inputs and outputs.
+\subsubsection{Inputs}
+\begin{markdown}
+* IMU Readings, `/hw/imu`: The IMU message. Must be received at a constant rate.
+* Sparse Map Features, `/loc/ml/features` and `/loc/ml/registration`:
+The features and registration pulses from the sparse map. The features include image coordinates and corresponding
+3D feature positions from the map.
+* AR Tag Features, `/loc/ar/features` and `/loc/ar/registration`: The same as the
+sparse map features, but for AR tags. These are assumed to come from the dock camera.
+* Optical Flow Features: `/loc/of/features` and `/loc/of/registration`: These
+features are used for visual odometry. They are not associated with a 3D position, but are tracked over time
+with a unique associated ID. Inside the EKF wrapper we keep track of these points over time and
+send appropriate features to the EKF.
+* Handrail Features: `/loc/handrail/features` and `/loc/handrail/registration`: The features for
+localization with respect to the handrail. These are point features like with the sparse map features, but also
+include a direction of the handrail axis and a boolean indicating whether the position along this axis has been observed.
+\end{markdown}
 
+\subsubsection{Outputs}
+\begin{markdown}
+* `/gnc/ekf`, the body state. See the EkfState message documentation for details.
+* The body tf2 transform.
+\end{markdown}
+
+\subsubsection{Ground Truth}
+Ground truth information is the ``true" physical state information about Astrobee. In simulation, this information is precisely known---in reality, it can only be estimated. Ground truth information can be found in:
+\begin{markdown}
+* Pose States, `/loc/truth/pose`, including position and attitude.
+* Twist States, `/loc/truth/twist`, including velocity and angular velocity.
+\end{markdown}
 \subsubsection{Notes on Overriding EST}
 The results of EST on actual hardware are likely worse, since feature points are generated for simulation purposes.
 
@@ -737,6 +777,12 @@ TODO: NASA ISS procedures.
 \subsection{ISS Layout}
 
 Bounding box of [1.5, 6.4, 1.7] m ([x, y, z], aligned with ISS coordinates), with centroid at [10.9, -6.65, 4.9] m (also ISS coordinates). This is not accounting for collision geometry of Astrobee, these are just the rough internal non-cluttered dimensions of the JEM.
+
+\begin{figure}[h!]
+	\centering
+	\includegraphics[width=0.8\textwidth]{img/ISS_env.jpg}
+	\caption{The ISS simulation environment.}
+\end{figure}
 
 \begin{figure}[h!]
 	\centering
