@@ -18,7 +18,7 @@
 \begin{document}
 \vspace{2in}
 \title{A Brief Guide to Astrobee's Flight Software:\\
-        Version 0.1}
+        Version 0.2}
 \author{Keenan Albee\footnote{PhD Candidate and NASA Space Technology Research Fellow, Massachusetts Institute of Technology}, Monica Ekal\footnote{PhD Candidate, Portugal Instituto Superior Técnico}}
 \date{February 2020}
 \maketitle
@@ -123,7 +123,7 @@ source $BUILD_PATH/native/devel/setup.bash
 
 It is possible to interact from the command line using \texttt{rosrun} or \texttt{roslaunch} to start up sets of nodes. Astrobee uses ROS for most of its message-passing, so interacting like you normally would with a ROS environment is possible. It is also possible to launch a script that will run the desired ROS commands so that command line updates aren't required, or to write your own custom node the interacts with the desired topics. Again, Astrobee runs on ROS: the hard part is finding exact details on which nodes do what, and what their interfaces are.
 
-One can also interact with Astrobee via NASA's ground data system (GDS) software. GDS is open-sourced, but its underlying DDS libraries are NASA-internal. GDS permits using rosjava or Android APKs. TODO: document the rosjava process.
+One can also interact with Astrobee via NASA's ground data system (GDS) software. GDS is open-sourced, but its underlying DDS libraries are NASA-internal. GDS provides a GUI interface and convenient communications with Astrobee, and by default can support Guest Science interfacing with guest Android APKs or Java code.
 
 \subsubsection{Sim Startup}
 
@@ -175,16 +175,16 @@ Gazebo properties are set in their respective URDF files, specified in \\
 \texttt{description/description/urdf}. The mass esimates are ``fairly accurate", the moment of inertia estimates are ``somewhat accurate". Values for ground air bearings are only ``somewhat accurate".
 \\
 
-The current mass estimate is $9.583788668\ $kg.
+The current mass estimate is $9.58\ $kg.
 \\
 
 The current inertia tensor estimate is
 \begin{align*}
     I =  
     \begin{bmatrix}
-              0.153427995 & 0 & 0\\
-              0 & 0.14271405 & 0\\
-              0 & 0 & 0.162302759
+              0.153 & 0 & 0\\
+              0 & 0.143 & 0\\
+              0 & 0 & 0.162
     \end{bmatrix}  \text{kg-m}^2\\
 \end{align*}
 
@@ -318,15 +318,81 @@ The Astrobee GNC is divided into a few main packages: CTL (control), EKF (estima
 
 \subsection{Locations of Key Parts of the Autonomy Pipeline}
 \begin{itemize}
-    \item Localization: \texttt{localization}
-    \item Estimation:  \texttt{gnc/ekf}
-    \item High-Level Planning: \texttt{mobility}
+ 	\item High-Level Finite State Machine (FSM): \texttt{management/executive}
+	\item Mobility FSM: \texttt{mobility/choreographer}
     \item Trajectory Planning: \texttt{mobility/planner\_*}
     \item Control: \texttt{gnc/ctl}
     \item Mixer: \texttt{gnc/fam}
+    \item Estimation:  \texttt{gnc/ekf}
+    \item Localization: \texttt{localization}
 \end{itemize}
 
 Most of the CTL, EKF, and FAM code was autocoded from a MATLAB Simulink model (and is therefore somewhat hard to read as source code). This Simulink model can be found in \texttt{gnc/matlab/astrobee\_control\_sim.slx}. Also note that most packages have individual READMEs with additional information.
+
+\subsection{FSMs}
+
+The executive and choreographer provide system-level and GNC-level management, respectively, often using their own FSMs to determine how to react. The exact logic behind decision-making is not covered here (it is extremely complex), but generally executive is useful from an autonomy perspective for getting external commands routed properly, and choreographer is useful for coordinating and monitoring interaction between GNC components (and interfacing with executive). Important information like inertial parameters and flight\_mode is also published by the choreographer.
+
+\begin{figure}[h!]
+	\centering
+	\includegraphics[width=1.0\textwidth]{img/mob_overview.png}
+	\caption{A general overview of the interfacing between GNC components and the FSMs.}
+\end{figure}
+
+\subsection{Overriding the Planner}
+\label{sec:plan}
+Astrobee's default trajectory generators (planners) are natively coded in C++---there is no MATLAB autocoding. The goal of the planners is, given a goal state, to produce a set of dynamically-feasible trajectory setpoints. On top of that, the planners may optimize a cost function, or avoid obstacles. Only planner\_qp does either of these. The default planner, planner\_trapezoidal, creates straight-line trapezoidal velocity ramps and does simple obstacle checking---if an obstacle is in the way, it aborts. planner\_qp is a bit fancier, and produces minimum-jerk, smooth, obstacle-avoiding trajectories. There are two main ways to incorporate a new planner:
+
+\noindent\textbf{Integrate into the Planner Framework - } This method requires the following:
+\begin{itemize}
+	\item Creating a new planner that inherits planner::PlannerImplementation (see planner\_trapezoidal\_nodelet.cc for an example)
+	\item Filling in a minimal set of callbacks for a planner::PlannerImplementation
+	\item Making sure planner.h is included, to register with the choreographer
+\end{itemize}
+
+A finite state machine running in the mobility subsystem (the choreographer) determines when and how planners are called, with configuration parameters also exposed via the rqt\_reconfigure ROS tool. Registration of a planner with the choreographer makes a planner accessible to the mob/motion action. mob/motion is \textit{the} interface for calling a planner. It is used by the teleop\_tool and by other internal commands involving motion requests.
+
+\begin{markdown}
+`/mob/motion` is aliased as `ACTION_MOBILITY_MOTION` in the codebase with action `ff_msgs::MotionAction`. This action is made available by the choreographer nodelet upon launch.
+\end{markdown}
+
+\begin{figure}[h!]
+	\centering
+	\includegraphics[width=1.0\textwidth]{img/choreographer.png}
+	\caption{The default choreographer oversight of planning/control logic. MotionActions provide one of the 5 command types shown in green.}
+\end{figure}
+
+The flow of generating a trajectory and sending it out for control is:
+\begin{itemize}
+	\item teleop\_tool or executive calls choreographer.Plan() to initiate creating a trajectory (line 900 of choreographer\_nodelet.cc) via the MotionAction
+	\item a request is sent to planner.SendGoal() (line 960 of choreographer\_nodelet.cc)
+	\item the planner action server calls its GoalCallback() (line 252 of planner.h) and calls the PlanCallback() (line 267 of planner.h)
+	\item the PlanCallback() routes the request to the trajectory generator defined by the planner implementation, and a plan\_result is set (e.g., line 85 of planner\_trapezoidal\_nodelet.cc)
+	\item separately, a request for control is made in choreographer.Control() (line 1068 of choreographer\_nodelet.cc) which publishes a goal to the control client. This call is made by the FSM, but the exact mechanism for specifying the rate of reading the plan is not clear.
+	\item ctl picks up the current action goal setpoint (line 343 of ctl.cc) and the segment is copied over to be processed.
+	\item a wrapper around the autocoded GNC uses the setpoint and current state to compute the required forces and torques, and sends them to the FAM (line 438 of ctl.cc), see ctl.h for the wrapper class def. Note that Control() (line 400 of ctl.cc) actually sets the desired control state
+\end{itemize}
+
+\noindent\textbf{Bypass the Planner Framework - } It is also possible to bypass this framework entirely, if this acceptable for the Astrobee Ops team and your intended use. If you have your own trajectory generation scheme (in Astrobee parlance, a planner) you can avoid the FSM management of the choreographer by simply publishing your trajectory setpoints to the topic that the choreographer would have ultimately published to. 
+
+The following publishers can be made with roscpp: one for base controller setpoints, and another for the arm controller. This will route trajectory setpoints directly to the controller monitoring TOPIC\_GNC\_CTL\_SETPOINT.
+ 
+\begin{markdown}
+~~~~
+//  Publish setpoints to base controller
+pub_ctl_ = nh->advertise<ff_msgs::ControlState>(
+TOPIC_GNC_CTL_SETPOINT, 5, true);
+
+//  Publish setpoints to arm
+pub_arm_ = nh->advertise<sensor_msgs::JointState>(
+TOPIC_BEHAVIORS_ARM_SETPOINT, 5, true);
+~~~~
+
+`/gnc/ctl/setpoint` is aliased as `TOPIC_GNC_CTL_SETPOINT` in the codebase with message `ff_msgs::ControlState`.
+\end{markdown}
+
+Anecdotally, sending commands too frequently can make ctl\_node zero out commanded force. There is also a position tolerance violation if tracking is particularly poor. Its value can be changed in the config files. This can lead to entering a different mode, `stopping' mode. Finally, you will need a way to run your setpoint publisher---in simulation, simply call via the command line; for ISS use, one possibility is creating a custom command sent from GDS.
+\\
 
 \subsection{Overriding the Controller (CTL)}
 
@@ -351,30 +417,18 @@ The folllwing topics are used:
 \subsubsection{Overriding the Astrobee Controller Sequence}
 
 If you don't care about integration with the Astrobee autonomy framework
-framework (actions, state machines, etc) one can just create their
-own node and publish directly to the controller or mixer (and arm, if desired).
-\\
-
-\noindent\textbf{Overriding the Trajectory Planner}
-\\
-\indent The following publishers can be made in roscpp:
-\begin{markdown}
-~~~~
- //  Publish setpoints to controller
- pub_ctl_ = nh->advertise<ff_msgs::ControlState>(
-   TOPIC_GNC_CTL_SETPOINT, 5, true);
-
- //  Publish setpoints to arm
- pub_arm_ = nh->advertise<sensor_msgs::JointState>(
-   TOPIC_BEHAVIORS_ARM_SETPOINT, 5, true);
-~~~~
-\end{markdown}
-Anecdotally, sending commands too frequently can make ctl\_node zero out commanded force. There is also a position tolerance violation if tracking is particularly poor. Its value can be changed in the config files. This can lead to entering a different mode, `stopping' mode.
-\\
+framework (actions, state machines, etc) it's possible to publish directly to the controller or mixer (and arm, if desired) as seen in Section \ref{sec:plan}. The default controller can then be tweaked to use these setpoints as desired. However, the default controller is very opaque and challenging to interface with. More likely, it makes sense to take the setpoints, perform custom control, and write to the topic commanding the FAM.\\
 
 \noindent\textbf{Overriding the Controller}
 \\
-\indent If instead one wishes to send force and torque commands directly to FAM, one should use:
+\indent The following topics should be monitored:
+\\
+\begin{itemize}
+	\item \texttt{TOPIC\_GNC\_CTL\_SETPOINT}, for setpoints to the base
+	\item \texttt{TOPIC\_BEHAVIORS\_ARM\_SETPOINT}, for setpoints to the arm
+\end{itemize}
+
+\indent To send force and torque commands directly to FAM after the custom controller has calculated forces and torques, use:
 \begin{markdown}
 ~~~~
 //  Publish setpoints to fam
@@ -383,7 +437,7 @@ TOPIC_GNC_CTL_COMMAND, 5);
 ~~~~
 \end{markdown}
 
-One should take care to shut off the existing controller (node: ctl\_node). \texttt{gnc/ctl/command} \textit{must} be updated at 62.5 Hz if using the stock controller, otherwise FAM will shut down the impeller system prematurely.
+Take care to shut off the existing controller (node: ctl\_node). \texttt{gnc/ctl/command} \textit{must} be updated at 62.5 Hz if overriding the stock controller, otherwise FAM will shut down the impeller system prematurely.
 
 
 \subsection{Overriding the Mixer (FAM)}
@@ -406,10 +460,7 @@ Note that the FAM Simulink can also be found at\\
 
 \subsubsection{Notes on Overriding FAM}
 \begin{markdown}
-ctl.cc actually sets the force/torque values to take, `hw/pmc/command` gives the mixed version to hardware. `control_mode` in `gnc/ctl/command` must be set appropriately or actuation will not actually occur---FAM subscribes to this topic.
-
-
-The choreographer's flight\_mode message is used by FAM to determine PMC speed (see fam.cc). Actual actuation occurs in pmc\_actuator\_tool.cc. pmc\_actuator\_nodelet.cc is the real coordinator. Lots of complicated low-level commanding occurs there.
+ctl.cc actually sets the force/torque values to take, `hw/pmc/command` gives the mixed version to hardware. The choreographer's flight\_mode message is used by FAM to determine PMC speed (see fam.cc). Actual actuation occurs in pmc\_actuator\_tool.cc. pmc\_actuator\_nodelet.cc is the real coordinator. Lots of complicated low-level commanding occurs there.
 
 FAM defaults to a nominal fan setting in the following lines in fam.cc:
 
@@ -772,7 +823,6 @@ The first method requires less verification, but fundamentally does not have sou
 
 The second method requires more verification and understanding of the Astrobee stack, but has more power in modifying anything you desire in the flight software stack (you have access to the underlying source code). roscpp and rospy interfaces are potentially faster and can run directly on the MLP/LLP.
 
-TODO: NASA ISS procedures.
 
 \subsection{ISS Layout}
 
@@ -796,6 +846,10 @@ Bounding box of [1.5, 6.4, 1.7] m ([x, y, z], aligned with ISS coordinates), wit
 The ASAP is the collection of source code and documentation that must be delivered to NASA for your project to be ISS-ready.
 
 TODO
+
+\subsection{Integration with GDS}
+
+If using the default Astrobee Android route, GDS integration is as simple as creating custom commands for the Guest Science interface and receiving them properly in your code. However, if planning to run directly on the MLP/LLP it is necessary to intercept custom commands for use on the MLP/LLP. TODO: How to intercept.
 
 \bibliography{bib.bib}
 \bibliographystyle{plain}
