@@ -18,9 +18,9 @@
 \begin{document}
 \vspace{2in}
 \title{A Brief Guide to Astrobee's Flight Software:\\
-        Version 0.2}
+        Version 0.3}
 \author{Keenan Albee\footnote{PhD Candidate and NASA Space Technology Research Fellow, Massachusetts Institute of Technology}, Monica Ekal\footnote{PhD Candidate, Portugal Instituto Superior Técnico}}
-\date{February 2020}
+\date{July 2020}
 \maketitle
 \vfill
 \begin{center}
@@ -35,8 +35,6 @@ This is a collection of user instructions, data, and software interfaces intende
 \newpage
 
 \tableofcontents
-
-
 
 \newpage
 
@@ -287,6 +285,12 @@ Free-floating objects can be spawned using a custom xacro and do not require int
 
 Multiple URDF files with the same link name are a problem. This can be fixed by creating an xacro macro that wraps the xacro file, allowing for different parents, etc. to be specified. This is currently used for model\_carriage.xacro, which must be used for both the supported object and Astrobee itself.
 
+\subsubsection{Global Static Objects}
+
+Ames uses a convention of ``global" transforms for objects that are static relative to the inertial ISS frame. Most of these objects are defined in \texttt{description/media/} and the ensuing subfolders. The actual transformations for these objects get set by the \texttt{framestore} node, which checks the config files (namely \texttt{iss.config} and \texttt{granite.config}) in order to set the necessary transformations relative to the ISS.
+
+New global objects may be added to framestore for broadcasting, if desired.
+
 \subsection{Visualization}
 
 The Astrobee sim has RViz, SViz (Gazebo), GViz (GNC), and GDS visualizations. The RViz visualization is the most practically useful and is started up by visualizer.py. Each of these can be started using the launch file input arguments specified \href{https://github.com/nasa/astrobee/tree/master/simulation}{here}.
@@ -437,7 +441,7 @@ TOPIC_GNC_CTL_COMMAND, 5);
 ~~~~
 \end{markdown}
 
-Take care to shut off the existing controller (node: ctl\_node). \texttt{gnc/ctl/command} \textit{must} be updated at 62.5 Hz if overriding the stock controller, otherwise FAM will shut down the impeller system prematurely.
+Take care to shut off the existing controller (node: ctl\_node), or to avoid writing to its input topic. \texttt{gnc/ctl/command} \textit{must} be updated at 62.5 Hz if overriding the stock controller, otherwise FAM will shut down the impeller system prematurely.
 
 
 \subsection{Overriding the Mixer (FAM)}
@@ -480,7 +484,7 @@ ros::Publisher pub_flight_mode_;
 ff_msgs::FlightMode flight_mode_;
 std::string flight_mode_name_ = "nominal";  // FlightMode to enter
 
-ff_util::FlightUtil::GetFlightMode(flight_mode_, flight_mode_name_)
+ff_util::FlightUtil::GetFlightMode(flight_mode_, flight_mode_name_);
 pub_flight_mode_ = nh->advertise<ff_msgs::FlightMode>(TOPIC_MOBILITY_FLIGHT_MODE, 1, true);
 pub_flight_mode_.publish(flight_mode_);// Publish default flight mode
 ~~~~
@@ -644,7 +648,7 @@ After a package gets compiled, its nodes and other targets are available for ROS
 - `rqt_graph` is a handy ROS tool for showing node interactions.
 - `rostopic echo` can show you what's being published on a certain topic.
 - `rosnode $NODE info` can you show you what a node is interacting with.
-TODO: logging.
+- logging using `ROS_NODELET_DEBUG` statements is especially handy for viewing output. See the Section below on Nodelet Debugging and Logging.
 \end{markdown}
 
 \subsection{``Turning Off" a Node}
@@ -690,33 +694,12 @@ catkin is normally used to produce the ROS workspace, and then to manage CMake i
 \subsubsection{CMake}
 The /cmake folder has custom Cmake functions that are used in the top-level CMakeLists.txt and its sub-CMakeLists.txt's. The important ones to note are: \texttt{CreateLibrary}, \texttt{CreateMsgTargets}, and \texttt{InstallLaunchFiles}. These custom commands are listed below, to ensure that any code you write actually gets placed in the correct directories that ROS and Astrobee hardware will expect to see.
 
-\subsubsection{Nodelets}
-
-Nodelets incur no copy-passing and can therefore be more efficient than nodes. Astrobee uses them. More information on nodelets can be found \href{http://wiki.ros.org/nodelet}{here}. 
-
-\textbf{Integrating a Nodelet}
-The following must be included and/or modified in your package:
-\begin{itemize}
-	\item nodelet\_plugins.xml : add and fill out basic information
-	\item package.xml : add a nodelet dependency
-	\item CMakeLists.txt : create a shared library
-	\item src : extend the NodeHandle class and include required functions in your source code
-\end{itemize}
-
-Here is an example of creating a shared library for your nodelet within \texttt{CMakeLists.txt}:
-\begin{markdown}
-~~~~
-create_library(TARGET tumble_targ_ctl
-LIBS ${catkin_LIBRARIES} ${EIGEN_LIBRARIES} common ff_nodelet
-INC ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS}
-DEPS ff_msgs ff_hw_msgs)
-~~~~
-\end{markdown}
-
 \subsubsection{ROS Messages}
 
-The majority of Astrobee's message files are located at\\\\
-\texttt{communications/ff\_msgs/msg}\\\\ 
+The majority of Astrobee's message files are located in the ff\_msgs package, located at\\\\
+\texttt{communications/ff\_msgs/msg/}\\
+
+During build, these .msg files get ROS-ified and turned into usable headers for C++. Include these in your source files, e.g., \texttt{\#include <ff\_msgs/FamCommand.h>}. \\
 
 Custom messages in a package can be installed using\\\\
 \texttt{create\_msg\_targets()}
@@ -725,6 +708,83 @@ Custom messages in a package can be installed using\\\\
 
 Custom launch files in a package can be installed using\\\\
 \texttt{install\_launch\_files()}
+
+\subsection{Nodelets}
+
+Nodelets incur no copy-passing and can therefore be more efficient than nodes. Astrobee uses them. More information on nodelets can be found \href{http://wiki.ros.org/nodelet}{here}. Nodelets have a \textit{manager} which can handle multiple nodelets and takes care of the no-copy message passing between nodelets under that manager. You must roslaunch both a nodelet and its manager for your code to run. (One exception: it is possible to launch standalone nodelets, mainly for debugging)
+
+\textbf{Integrating a Nodelet}
+The following must be included and/or modified in your package:
+\begin{itemize}
+	\item nodelet\_plugins.xml : add and fill out basic information
+	\item package.xml : add a nodelet dependency
+	\item CMakeLists.txt : create a shared library
+	\item src : extend the NodeHandle class and include required functions in your source code. For Astrobee, all nodelets extend from ff\_util::FreeFlyerNodelet.
+	\item launchfile : your main launchfile (probably MLP.launch or LLP.launch) must call your nodelet and nodelet manager to start them. See MLP.launch for Astrobee-esque examples.
+\end{itemize}
+
+Here is an example of creating a shared library for your nodelet within \texttt{CMakeLists.txt}:
+\begin{markdown}
+	~~~~
+	create_library(TARGET tumble_targ_ctl
+	LIBS ${catkin_LIBRARIES} ${EIGEN_LIBRARIES} common ff_nodelet
+	INC ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS}
+	DEPS ff_msgs ff_hw_msgs)
+	~~~~
+\end{markdown}
+
+\textbf{Nodelet Debugging}
+It is useful to run nodelets individually for debugging purposes. This can be done with a special launch file that launches the nodelet \textit{standalone}, without a nodelet manager, or with a nodelet manager just like in MLP.launch. You \textit{must} set your environment variables to be the same as those used in astrobee/sim.launch, since they will be used by FreeFlyerNodelet. Additionally, logging must be set appropriately as noted in the next section. For example,
+\begin{markdown}
+	<launch>
+	<arg name="robot" default="$(optenv ASTROBEE_ROBOT sim)" />
+	<arg name="world" default="$(optenv ASTROBEE_WORLD iss)" />
+	
+	<env name="ASTROBEE_ROBOT" value="$(arg robot)" />
+	<env name="ASTROBEE_WORLD" value="$(arg world)" />
+	<env if="$(eval optenv('ASTROBEE_CONFIG_DIR','')=='')"
+	name="ASTROBEE_CONFIG_DIR" value="$(find astrobee)/config" />
+	<env if="$(eval optenv('ASTROBEE_RESOURCE_DIR','')=='')"
+	name="ASTROBEE_RESOURCE_DIR" value="$(find astrobee)/resources" />
+	<env if="$(eval optenv('ROSCONSOLE_CONFIG_FILE','')=='')"
+	name="ROSCONSOLE_CONFIG_FILE" value="$(find astrobee)/resources/logging.config"/>
+	
+	<arg name="spurn" default=""/>                 <!-- Prevent a specific node   -->
+	<arg name="nodes" default=""/>                 <!-- Launch specific nodes     -->
+	<arg name="extra" default=""/>                 <!-- Inject an additional node -->
+	<arg name="debug" default=""/>                 <!-- Debug a node set          -->
+	<arg name="dds" default="false"/>              <!-- Should DDS be started     -->
+	<arg name="output" default="screen"/>          <!-- Where nodes should log    -->
+	
+	<!-- Start a nodelet manager, if needed -->
+	<node
+	pkg="nodelet" type="nodelet" name="td_manager"
+	args="manager"
+	output="$(arg output)"/>
+	
+	<!-- Now inject the nodelet into the nodelet manager -->
+	<node pkg="nodelet" type="nodelet" name="chaser_coordinator"
+	required="false" respawn="false"
+	args="load chaser_coordinator/ChaserCoordinatorNodelet td_manager"
+	output="$(arg output)"/>
+	
+	<param name="td/instruct" type="string" value="no_action" />
+	</launch>
+\end{markdown}
+
+\textbf{Nodelet Logging}
+
+Short version: Inside your nodelet, use one of the nodelet logging macros like \texttt{NODELET\_DEBUG\_STREAM}. In \texttt{astrobee/resources/logging.config} add your specific nodelet and set the logging level to \texttt{DEBUG}:\begin{markdown}
+	# TUMBLEDOCK NODELET LOGGING
+	log4j.logger.ros.Astrobee./honey/chaser_coordinator    = DEBUG
+	log4j.logger.ros.Astrobee./target_coordinator          = DEBUG
+\end{markdown}
+\vspace{1cm}
+Long version: Usually, the rosconsole package is used for ROS logging. A variety of macros discussed \href{http://wiki.ros.org/roscpp/Overview/Logging}{here} are available to record information. Output can be provided to the screen using the \texttt{output = screen} argument when launching a node, or to a log file (located at \texttt{~/.ros/log}) using \texttt{output = log}.
+
+Nodelets print information using NODELET\_DEBUG rather than ROS\_DEBUG statements. Depending on the nodelet wrapper class used, the exact logging command might be different than NODELET\_DEBUG. For Astrobee, NODELET\_DEBUG\_STREAM is recommended for logging.
+
+For logging to record, the logging level for individual nodelets must be set appropriately. The global ROSCONSOLE\_CONFIG\_FILE is located at \texttt{astrobee/resources/logging.config}. ff\_nodelet.launch also has a special \texttt{debug} argument to use \texttt{astrobee/resources/debug.config}, but this does not appear to be working currently. Therefore, set logging level for your nodelet in \texttt{logging.config}.
 
 
 \section{Operations Sequence for a Test}
@@ -973,5 +1033,15 @@ The entire directory breakdown is very long, but most important folders are note
 	]
 \end{forest}
 \end{adjustwidth}
+
+\section{ROS Tips}
+So you want to mess with your ROS installation, huh? Luckily, adding and removing packages is often made very simple since packages are commonly packaged as debians and made available via apt. The typical naming convention is \begin{markdown}
+	sudo apt-get install ros-DISTRIBUTION-PACKAGE_NAME
+	
+	sudo apt-get install ros-kinetic-rqt-logger-level
+\end{markdown}
+Make sure you run a \texttt{rosdep} to check any additional package requirements.
+
+Occasionally, rostime will \textit{not} work at all after a shutdown of the Astrobee sim. This is a hard error to catch, and can be solved by restarting roscore.
 
 \end{document}
