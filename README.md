@@ -14,9 +14,9 @@ year = {2020}
 }
 ```
 
-<center>
+<p align="center">
 <img src="tex/img/astrobee_mascot.png" alt="drawing" width="300" class="center"/>
-</center>
+<p align="center">
 
 
 
@@ -27,6 +27,6 @@ year = {2020}
 Note that the markdown package is used (so that markdown
 can be used within LaTeX), see [here](http://mirrors.ibiblio.org/CTAN/macros/generic/markdown/markdown.html).
 
-<center>
+<p align="center">
 <img src="tex/img/whee.png" alt="drawing" width="300" class="center"/>
-</center>
+<p align="center">
