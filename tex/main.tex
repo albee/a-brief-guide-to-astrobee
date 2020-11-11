@@ -369,7 +369,6 @@ The Astrobee ROS workspace environment must be overlaid for ROS to find it. This
 ~~~~
 source $BUILD_PATH/native/devel/setup.bash
 ~~~~
-
 \end{markdown}
 
 As a first sample test of the simulation, the user can start up the standard sim using:
@@ -673,19 +672,11 @@ if (client.call(srv))
     ROS_ERROR("Failed to call service.");
   }
 \end{lstlisting}
-At this point, the onboard GNC won't publish to \texttt{gnc/ctl/command}.
-Note that \texttt{gnc/ctl/command} \textit{must} be updated at
-62.5 Hz by the GSP if overriding the stock controller, otherwise FAM will shut down the
-impeller system prematurely.
-
+At this point, the onboard GNC won't publish to \texttt{gnc/ctl/command}. Note that \texttt{gnc/ctl/command} \textit{must} be updated at 62.5 Hz by the GSP if overriding the stock controller, otherwise FAM will shut down the impeller system prematurely. 
 
 \subsection{Force Allocation Module/Mixer (FAM)}
 
-It is also possible to override the mixer (FAM) by publishing directly to its
-write topics. If doing so, and shifted center of mass has already been accounted
-for, then the user can disable the FAM's CoM shift adjustment by setting
-\texttt{mob/inertia}  to zero by modifying the Gazebo config file(s) in
-\texttt{astrobee/config/worlds}.
+It is also possible to override the mixer (FAM) by publishing directly to its write topics. If doing so, and shifted center of mass has already been accounted for, then the user can disable the FAM's CoM shift adjustment by setting \texttt{mob/inertia}  to zero by modifying the Gazebo config file(s) in \texttt{astrobee/config/worlds}.
 
 Note that the original FAM Simulink model can also be found at\\
 \texttt{astrobee/fsw\_lib/ctl\_controller/clc\_closed\_loop\_controller\_lib}.
