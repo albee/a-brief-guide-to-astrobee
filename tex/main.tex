@@ -16,6 +16,14 @@
 \usepackage{amsfonts}
 \usepackage{graphbox}
 
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset { %
+    language=C++,
+    backgroundcolor=\color{black!5}, % set backgroundcolor
+    basicstyle=\footnotesize,% basic font setting
+}
+
 \hypersetup{
     colorlinks,
     citecolor=black,
@@ -361,6 +369,7 @@ The Astrobee ROS workspace environment must be overlaid for ROS to find it. This
 ~~~~
 source $BUILD_PATH/native/devel/setup.bash
 ~~~~
+
 \end{markdown}
 
 As a first sample test of the simulation, the user can start up the standard sim using:
@@ -641,15 +650,48 @@ TOPIC_GNC_CTL_COMMAND, 5);
 ~~~~
 \end{markdown}
 
-Take care to shut off the existing controller (\texttt{ctl\_node}), or to avoid writing to its input topic. \texttt{gnc/ctl/command} \textit{must} be updated at 62.5 Hz if overriding the stock controller, otherwise FAM will shut down the impeller system prematurely.
+To disable the onboard controller, Astrobee versions $v0.12.0/develop$ provide a user-callable service 
+on the \texttt{GNC} module. An example request to shutdown the GNC is
+\begin{lstlisting}
+// Include Header 
+#include <std_srvs/SetBool.h>
+
+// Request GNC to be disabled
+// SERVICE_GNC_CTL_ENABLE = "gnc/ctl/enable" 
+ros::ServiceClient client = 
+   n.serviceClient<std_srvs::SetBool>(SERVICE_GNC_CTL_ENABLE);
+std_srvs::SetBool srv;
+srv.data = false;
+
+if (client.call(srv))
+  {
+    ROS_INFO("Success: %d", (long int)srv.response.success);
+    ROS_INFO("Message: %s", srv.response.message.c_str());
+  }
+  else
+  {
+    ROS_ERROR("Failed to call service.");
+  }
+\end{lstlisting}
+At this point, the onboard GNC won't publish to \texttt{gnc/ctl/command}.
+Note that \texttt{gnc/ctl/command} \textit{must} be updated at
+62.5 Hz by the GSP if overriding the stock controller, otherwise FAM will shut down the
+impeller system prematurely.
 
 
 \subsection{Force Allocation Module/Mixer (FAM)}
 
-It is also possible to override the mixer (FAM) by publishing directly to its write topics. If doing so, and shifted center of mass has already been accounted for, then the user can disable the FAM's CoM shift adjustment by setting \texttt{mob/inertia}  to zero by modifying the Gazebo config file(s) in \texttt{astrobee/config/worlds}.
+It is also possible to override the mixer (FAM) by publishing directly to its
+write topics. If doing so, and shifted center of mass has already been accounted
+for, then the user can disable the FAM's CoM shift adjustment by setting
+\texttt{mob/inertia}  to zero by modifying the Gazebo config file(s) in
+\texttt{astrobee/config/worlds}.
 
 Note that the original FAM Simulink model can also be found at\\
-\texttt{astrobee/fsw\_lib/ctl\_controller/clc\_closed\_loop\_controller\_lib}. Force and torque limits are also listed at \texttt{tun\_control\_linear\_force\_limit}, but must still be verified at this time. See Section 2.
+\texttt{astrobee/fsw\_lib/ctl\_controller/clc\_closed\_loop\_controller\_lib}.
+Force and torque limits are also listed at
+\texttt{tun\_control\_linear\_force\_limit}, but must still be verified at this
+time. See Section 2.
 
 \subsubsection{Inputs}
 \begin{markdown}
