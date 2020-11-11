@@ -655,6 +655,9 @@ on the \texttt{GNC} module. An example request to shutdown the GNC is
 // Include Header 
 #include <std_srvs/SetBool.h>
 
+// ROS Node Handler
+ros::NodeHandle n;
+
 // Request GNC to be disabled
 // SERVICE_GNC_CTL_ENABLE = "gnc/ctl/enable" 
 ros::ServiceClient client = 
