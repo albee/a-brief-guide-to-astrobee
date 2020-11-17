@@ -649,9 +649,10 @@ TOPIC_GNC_CTL_COMMAND, 5);
 ~~~~
 \end{markdown}
 
-To disable the onboard controller, Astrobee versions $v0.12.0/develop$ provide a user-callable service 
-on the \texttt{GNC} module. An example request to shutdown the GNC is
-\begin{lstlisting}
+To disable the onboard controller, Astrobee versions \texttt{v0.12.0/develop} and higher provide a user-callable service 
+on the \texttt{GNC} module. An example request to shutdown the GNC is:
+\begin{markdown}
+~~~~
 // Include Header 
 #include <std_srvs/SetBool.h>
 
@@ -674,7 +675,8 @@ if (client.call(srv))
   {
     ROS_ERROR("Failed to call service.");
   }
-\end{lstlisting}
+~~~~
+\end{markdown}
 At this point, the onboard GNC won't publish to \texttt{gnc/ctl/command}. Note that \texttt{gnc/ctl/command} \textit{must} be updated at 62.5 Hz by the GSP if overriding the stock controller, otherwise FAM will shut down the impeller system prematurely. 
 
 \subsection{Force Allocation Module/Mixer (FAM)}
