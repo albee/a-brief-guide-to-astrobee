@@ -702,7 +702,7 @@ time. See Section 2.
 
 \subsubsection{Bypassing the Mixer}
 
-\texttt{ctl.cc} actually sets the force/torque values to take, while \texttt{hw/pmc/command} gives the mixed version to hardware (i.e., vent servos) to execute. \texttt{choreographer}'s \texttt{flight\_mode} message is used by FAM to determine PMC speed (see \texttt{fam.cc}). Actual actuation occurs in \texttt{pmc\_actuator\_tool.cc}. \texttt{pmc\_actuator\_nodelet.cc} is the real coordinator---lots of complicated low-level commanding occurs there that is not covered in this guide.
+\texttt{ctl.cc} actually sets the force/torque values to take, while \texttt{hw/pmc/command} gives the mixed version to hardware (i.e., vent servos) to execute. \texttt{choreographer}'s \texttt{flight\_mode} message is used by FAM to determine PMC speed (see \texttt{fam.cc}). Actual actuation occurs in \texttt{pmc\_actuator\_tool.cc}. As mentioned above, the FAM is implemented in Simulink. A summary of what happens under the hood is given in section \ref{appendix:D}, in case knowing the mixing procedure becomes necessary (for instance, to override FAM and directly publish to \texttt{hw/pmc/command}, or directly incorporate the nozzle opening limits in one's control algorithm.) \texttt{pmc\_actuator\_nodelet.cc} is the real coordinator---lots of complicated low-level commanding occurs there that is not covered in this guide.
 
 FAM defaults to a nominal fan setting in the following lines in \texttt{fam.cc}:
 
@@ -1427,6 +1427,59 @@ These are some useful ROS tips that will be updated from time-to-time in future 
 Make sure to run a \texttt{rosdep install} to get any missing packages that the new package depends on.
 
 \item Occasionally, rostime will \textit{not} work at all after a shutdown of the Astrobee sim. This is a hard error to catch, and can be solved by restarting \texttt{roscore}.
+\end{itemize}
+
+\clearpage
+\section{From forces and torques to commanded nozzle openings }\label{appendix:D}
+This section presents a summary of the operations carried out by the Astrobee mixer, which is programmed in Simulink:
+\begin{itemize}
+\item The commanded forces and torques, $\tau$ and $f$ are converted to thrust per nozzle $T_N$
+\begin{equation}
+T_N = \left[\begin{array}{cc}
+D^{-1} & \left(R\times D\right)^{-1}\end{array}\right]\begin{bmatrix}
+f \\ 
+\tau\\
+\end{bmatrix}
+\end{equation}
+
+$D_i$: direction of nozzle $i$\\
+$R_i$: position of nozzle $i$ - position of center of gravity\\
+Prevent negative thrust from being commanded, if $T_i<0$, $T_N = T_N + \mathrm{min}(\vert T_N \vert)$
+
+\item A lookup table is used to map $T_N$ to $N$, the impeller speed. Then, $\frac{\sum T_N}{N^2\times C_d}$ is mapped to $Cd_p$ using another lookup table.
+$\Delta P$ or the normalized pressure density: 
+\begin{equation}
+\Delta P = Cd_p\times P \times N^2 \times d^2
+\end{equation}
+$d$: impeller diameter\\
+$N$: impeller speed\\
+$C_d$: Discharge coefficient\\
+$p$ : Air density\\
+\begin{equation}
+A_i = \frac{T_N}{2\times\Delta P \times C_d^2}
+\end{equation}
+
+\begin{equation}
+S_i = \frac{A_i}{2W}
+\end{equation}
+$W$: Width of nozzle\\
+$S_i$: Commanded nozzle opening\\
+
+\item  Finally, the commanded nozzle opening angle,  
+\begin{equation}
+cos(\theta) = \frac{H - S_i}{L}
+\end{equation}
+$H$: Nozzle height\\
+$L$: Flap length\\
+$S_i$: Commanded nozzle opening\\
+$\theta_i$: Commanded nozzle opening angle. The maximum allowed nozzle opening is about 65$\degree$
+\\$A_i$: Commanded area per nozzle For each nozzle $i$\\
+\smallskip
+After checking that it lies within the limits, i.e, if $\theta<\theta_{\textrm{min}}$, $\theta = \theta_{\textrm{min}}$ and if $\theta>\theta_{\textrm{max}}$, $\theta = \theta_{\textrm{max}}$, the commanded angles is sent off to pwm to convert to servo commands.\\
+\textbf{The commanded $\theta$s are mapped on a scale of $0$ to $255$ and published at `hw/pmc/nozzle\_positions'}
+
+
+
 \end{itemize}
 
 \end{document}
