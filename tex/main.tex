@@ -1446,19 +1446,37 @@ $D_i$: direction of nozzle $i$\\
 $R_i$: position of nozzle $i$ - position of center of gravity\\
 Prevent negative thrust from being commanded, if $T_i<0$, $T_N = T_N + \mathrm{min}(\vert T_N \vert)$
 
-\item A lookup table is used to map $T_N$ to $N$, the impeller speed. Then, $\frac{\sum T_N}{N^2\times C_d}$ is mapped to $Cd_p$ using another lookup table.
-$\Delta P$ or the normalized pressure density: 
-\begin{equation}
-\Delta P = Cd_p\times P \times N^2 \times d^2
-\end{equation}
-$d$: impeller diameter\\
+\item Impeller speed $N$ is selected based on the speed specified in the flight mode (see /mob/flight\_mode). The following impeller speeds are defined:
+\begin{center}
+\begin{tabular}{ c c }
+Number, name & Speed \\
+0 Zero & 0 \\ 
+1 Quiet & 209.4395  \\ 
+2  Nominal & 261.7994  \\  
+3 Aggressive & 293.2153     
+\end{tabular}
+\end{center}
+
+\item For each set of 6 nozzles, (i = 1 to 6 and 7 to 12), the following operations are carried out
+\begin{itemize}
+    \item $\frac{\sum\frac{ T_N_i}{  C_d_i}}{N^2}$ is mapped to $Cdp$ using a lookup table. $C_d$ is the discharge coefficient. The calculation of this table can be found under \begin{markdown}
+    gnc/matlab/fsw_model/fam_force_allocation_module_prep.m     \end{markdown}
+        where $d$: impeller diameter\\
 $N$: impeller speed\\
 $C_d$: Discharge coefficient\\
-$p$ : Air density\\
-\begin{equation}
-A_i = \frac{T_N}{2\times\Delta P \times C_d^2}
-\end{equation}
+$\rho$ : Air density\\
+    \item $\Delta P$ or the plenum delta pressure
 
+    \begin{equation}
+\Delta P = Cdp\times \rho \times N^2 \times d^2
+\end{equation} 
+
+
+\item The commanded area per nozzle is found as
+\begin{equation}
+A_i = \frac{T_N_i}{2\times\Delta P \times C_d_i^2}
+\end{equation}
+\item Then, the commanded nozzle opening
 \begin{equation}
 S_i = \frac{A_i}{2W}
 \end{equation}
@@ -1467,19 +1485,20 @@ $S_i$: Commanded nozzle opening\\
 
 \item  Finally, the commanded nozzle opening angle,  
 \begin{equation}
-cos(\theta) = \frac{H - S_i}{L}
+cos(\theta_i) = \frac{H - S_i}{L}
 \end{equation}
+
 $H$: Nozzle height\\
 $L$: Flap length\\
 $S_i$: Commanded nozzle opening\\
-$\theta_i$: Commanded nozzle opening angle. The maximum allowed nozzle opening is about 65$\degree$
-\\$A_i$: Commanded area per nozzle For each nozzle $i$\\
-\smallskip
-After checking that it lies within the limits, i.e, if $\theta<\theta_{\textrm{min}}$, $\theta = \theta_{\textrm{min}}$ and if $\theta>\theta_{\textrm{max}}$, $\theta = \theta_{\textrm{max}}$, the commanded angles is sent off to pwm to convert to servo commands.\\
+$\theta_i$: Commanded nozzle opening angle. The maximum allowed nozzle opening is about 79.91 $\degree$, and the lowest is 15.68 $\degree$\\
+After checking that it lies within the limits, i.e, if $\theta<\theta_{\textrm{min}}$, $\theta = \theta_{\textrm{min}}$ and if $\theta>\theta_{\textrm{max}}$, $\theta = \theta_{\textrm{max}}$, the commanded angles are sent off to pwm to convert to servo commands.\\
 \textbf{The commanded $\theta$s are mapped on a scale of $0$ to $255$ and published at `hw/pmc/nozzle\_positions'}
+\end{itemize}
+\smallskip
+
 
 
 
 \end{itemize}
-
 \end{document}
