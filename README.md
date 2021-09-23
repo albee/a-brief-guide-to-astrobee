@@ -7,8 +7,8 @@ Feel free to make pull requests with edits to the main TeX document. Let the aut
 
 ```
 @misc{Albee2020,
-author = {Albee, Keenan and Ekal, Monica and Oestreich, Charles},
-number = {October},
+author = {Albee, Keenan and Ekal, Monica and Oestreich, Charles and Roque, Pedro},
+number = {September},
 title = {{A Brief Guide to Astrobee's Flight Software}},
 year = {2020}
 }
