@@ -15,6 +15,7 @@
 \usepackage{mathtools}
 \usepackage{amsfonts}
 \usepackage{graphbox}
+\usepackage{gensymb}
 
 \usepackage{listings}
 \usepackage{xcolor}
@@ -34,29 +35,30 @@
 
 \begin{document}
 \title{A Brief Guide to Astrobee's Flight Software
-        \Large Revision 1.0 }
-\author{Keenan Albee\footnote{PhD Candidate and NASA Space Technology Research Fellow, Massachusetts Institute of Technology}, Monica Ekal\footnote{PhD Candidate, Instituto Superior Técnico, University of Lisbon}, Charles Oestreich\footnote{SM Candidate and Draper Fellow, Massachusetts Institute of Technology}}
-\date{October 2020}
+        \Large Revision 1.1 }
+\author{Keenan Albee\footnote{PhD Candidate and NASA Space Technology Research Fellow, Massachusetts Institute of Technology}, Monica Ekal\footnote{PhD Candidate, Instituto Superior Técnico, University of Lisbon}, Charles Oestreich\footnote{SM Candidate and Draper Fellow, Massachusetts Institute of Technology}, Pedro Roque\footnote{PhD Candidate, KTH Royal Institute of Technology}}
+\date{September 2021}
 \vspace{20cm}
 \maketitle
 \vfill
 \begin{center}
 This guide can be cited as:\\
-K. Albee, M. Ekal, and C. Oestreich, “A Brief Guide to Astrobee’s Flight Software.” 2020.
+K. Albee, M. Ekal, C. Oestreich, and P. Roque, “A Brief Guide to Astrobee’s Flight Software.” 2021.
 \end{center}
 \newpage
-This guide is a collection of user instructions, system documentation, and software interfaces intended for researchers interested in interacting with the autonomy stack of NASA's Astrobee Flight Software (\textit{not} Astrobee Android---for that interface, please see \href{https://github.com/nasa/astrobee\_android}{here}). The guide is mainly intended for those interested in motion planning, estimation, and control, i.e., Guidance, Navigation, and Control (GNC) and is inspired by the SPHERES Guest Scientist Program Guide, originally published in 2009 to document the SPHERES free-flyer experiment. The flow is chronological, roughly following the steps a new user would follow from initial setup to adding research code for a hardware test. However, do not rely solely on this guide for testing on-orbit; the guide is intended as a reference to find information and get working experiments without drowning in reading source code. There are also numerous Astrobee papers written by NASA Ames folks which are good references but note that some are out-of-date from current Astrobee specifications \cite{Park2017a} \cite{Smith2016} \cite{Watterson2016} \cite{Fluckiger} \cite{Coltin2016a} \cite{Kim2017} \cite{Bualat2015} \cite{Lee2018}. Section 1 is a general introduction to Astrobee and its software; Section 2 details some configuration information important for GNC and simulation; Section 3 shows how to set up the simulation and flight software; Section 4 overviews using the simulation and Gazebo; Section 5 contains key autonomy pipeline interfaces and modification information; Section 6 covers the perching arm; Section 7 shows how to add new code; Section 8 discusses preparation for hardware testing and some considerations for ISS testing. 
+This guide is a collection of user instructions, system documentation, and software interfaces intended for researchers interested in interacting with the autonomy stack of NASA's Astrobee Flight Software (\textit{not} Astrobee Android---for that interface, please see \href{https://github.com/nasa/astrobee\_android}{here}). The guide is mainly intended for those interested in motion planning, estimation, and control, i.e., Guidance, Navigation, and Control (GNC) research and is inspired by the SPHERES Guest Scientist Program Guide, originally published in 2009 to document the SPHERES free-flyer experiment. The flow is chronological, roughly following the steps a new user would follow from initial setup to adding research code for a hardware test. However, do not rely solely on this guide for testing on-orbit; the guide is intended as a reference to find information and get working experiments without drowning in reading source code. There are also numerous Astrobee papers written by NASA Ames folks which are good references but note that some are out-of-date from current Astrobee specifications \cite{Park2017a} \cite{Smith2016} \cite{Watterson2016} \cite{Fluckiger} \cite{Coltin2016a} \cite{Kim2017} \cite{Bualat2015} \cite{Lee2018}. Section 1 is a general introduction to Astrobee and its software; Section 2 details some configuration information important for GNC and simulation; Section 3 shows how to set up the simulation and flight software; Section 4 overviews using the simulation and Gazebo; Section 5 contains key autonomy pipeline interfaces and modification information; Section 6 covers the perching arm; Section 7 shows how to add new code; Section 8 discusses preparation for hardware testing and some considerations for ISS testing. 
 \\
 \\
-\indent Edits to this guide are ongoing and future revisions can be expected---contributions are welcome!\footnote{https://github.com/albee/a-brief-guide-to-astrobee} Additional contributors: Pedro Roque.
+\indent Edits to this guide are ongoing and future revisions can be expected---contributions are welcome!\footnote{https://github.com/albee/a-brief-guide-to-astrobee}
+Thanks to Brian Coltin, In Won Park, Marina Moreira, the Astrobee Ops Team, and others at NASA Ames IRG for their help in answering many questions.
 \\
 \\
-\indent Thanks to Brian Coltin, In Won Park, Marina Moreira, the Astrobee Ops Team, and others at NASA Ames IRG for their help in answering many questions.
+\textbf{Version 1.1 Updates}: An appendix on FAM's structure has been added; additional details on commanding and hardware integration have been added to Section 8; small typo fixes and wording changes have been made throughout. A significantly expanded Section 8 and updates for the latest FSW version are expected in Version 1.2.
 
-\vspace{1cm}
+\vspace{0.5cm}
 \begin{figure}[hb!]
     \centering
-    \includegraphics[width=8cm]{img/astrobee_mascot.png}
+    \includegraphics[width=7cm]{img/astrobee_mascot.png}
 \end{figure}
 \newpage
 
@@ -681,7 +683,7 @@ if (client.call(srv))
 At this point, the onboard GNC won't publish to \texttt{gnc/ctl/command}. Note that \texttt{gnc/ctl/command} \textit{must} be updated at 62.5 Hz by the GSP if overriding the stock controller, otherwise FAM will shut down the impeller system prematurely. 
 
 \subsection{Force Allocation Module/Mixer (FAM)}
-
+\label{sec:fam}
 It is also possible to override the mixer (FAM) by publishing directly to its write topics. If doing so, and shifted center of mass has already been accounted for, then the user can disable the FAM's CoM shift adjustment by setting \texttt{mob/inertia}  to zero by modifying the Gazebo config file(s) in \texttt{astrobee/config/worlds}.
 
 Note that the original FAM Simulink model can also be found at\\
@@ -1028,26 +1030,27 @@ A bit more verbosely: usually, the \texttt{rosconsole} package is used for ROS l
 \clearpage
 \section{Setting up Tests and Moving to Hardware}
 
-After creating new autonomy functionality, integrating code into the Astrobee ecosystem, and debugging, it is time to begin thinking about setting up higher-level test coordination. There are a few major options when deciding how to run Astrobee Flight Software code:
+After creating new autonomy functionality, integrating code into the Astrobee ecosystem, and debugging, it is time to begin thinking about setting up higher-level test coordination. There are a few major options when deciding how to run Astrobee Flight Software code, involving either the Ground Data System (GDS) or a command-line interface:
 
 \begin{enumerate}
-    \item Use the Astrobee Android/Java API (Java/rosjava or Android APKs) to command custom nodelets/executables.
-    \item Use direct ROS command-line functionality (Python or Bash scripts, or direct terminal commands).
-    \item Create a custom launch file sequence (ROS launch files) to start self-managed nodelets.
-    \item Integrate GDS command functionality (modification of \texttt{executive}) to capture Guest Science Commands on the MLP.
+    \item Use the Astrobee Android/Java API (Android APK using Java/rosjava) as the high-level test commanding environment on the HLP processor.
+    \item Use the Astrobee Android/Java API on the HLP processor as a pass-through to trigger automated testing on the MLP/LLP processors.
+    \item Use direct ROS command-line functionality (e.g., Python or Bash scripts, or direct terminal commands) to trigger automated testing on the MLP/LLP processors.
 \end{enumerate}
 
-The first method allows APKs to interface via rosjava to the general ROS ecosystem, allowing nodelets, scripts, launch files, etc. to be called as normal. Further, Astrobee Android is already integrated with GDS commanding and might be modifiable to receive custom Guest Science commands. However, this method is not very practical for simulation-only testing.
+The first method allows APKs to interface via rosjava to the general ROS ecosystem. This would allow one to, for example, use Astrobee Android as a high-level scripting environment to trigger nodelet functions like creating a motion plan. Astrobee Android integrates with the GDS GUI and allows users to create custom Guest Science commands making the commanding options wide-ranging. However, simulation-only testing is a challenge because the Android environment of the HLP must run simultaneously with the Ubuntu simulation environment of the MLP/LLP. Additionally, GDS is not configured for simulation testing and may only be used via the GDS helper tool.
 
-The second method is more familiar to standard ROS use, and means that simple scripts can be set up to call and execute nodelets and instructions as desired. Hardware testing integration is potentially more challenging for a true ISS experiment.
+The second method also uses Astrobee Android, mainly to provide the user with access to the GDS commanding environment on ISS test day. However, this method emphasizes high-level test scripting on the MLP/LLP rather than the HLP; a minimal APK may be used to simply pass GDS commands to nodelets running on the MLP/LLP. The benefit is that simulation testing is significantly easier (most simulation testing may be run without an Android HLP environment). This approach is used by the Astrobee Science Application Package (ASAP) testing interface, currently in development by MIT and collaborators. A drawback is that the computational resources of the HLP are laregly ignored by this method.
 
-The third method relies on nodelets running passively from a standard launch sequence, e.g., by launching nodelets from \texttt{LLP.launch}. This is a good way to remain on the MLP/LLP for hardware use and run alongside the rest of the Astrobee autonomy stack, and may be combined with e.g., the second method to issue real-time commands.
+The third method relies on having a command line interface directly on the MLP and/or LLP. This is occasionally possible for ISS testing, but is not very practical as it prevents use of the feature-rich GDS GUI. However, from a simulation development standpoint this is by far the simplest approach as it only reqires the standard Ubuntu simulation environment, without Android HLP interfacing.
 
-Finally, the fourth method relies on integration with the GDS interface, which is one of the primary ways that Astrobee is remotely commanded. This method may be combined with Astrobee Android or MLP/LLP use, but requires capturing new commands received from GDS as well as having a working ground station executable setup. This method is also not very practical for simulation-only testing.
+A final, major consideration for the above methods is whether tests should be designed for teleoperation or automation. Astrobee offers the unique opportunity for the ground operator to send arbitrary commands in near real-time. The important result is that tests need not be fully automated; they can be run in piecemeal chunks commanded one-by-one by the ground operator. However, this form of teleoperation can be challenging for the ISS environment, particularly when situational awareness is not perfect (e.g., where Astrobee is located, what state its systems are in). An additional complication is the difficulty in standardizing test runs when each series of tests is possibly modified in real-time by a human operator. On the other hand, automated tests may be unnecessarily rigid, e.g., if initial conditions are fixed beforehand and cannot be set in real-time by the ground operator. Astrobee's real-time teleoperation capability is a real asset to providing more flexible on-orbit testing, but the test design must approach teleoperation carefully if used.
 
 \subsection{Ground Data System (GDS) or Command Line?}
 
-There is a well-defined interface for the Astrobee GDS to issue standard commands. The GDS code is open-sourced \href{https://github.com/nasa/astrobee_gds/}{here}. An open-source binary can be requested (with application) \href{https://software.nasa.gov/software/ARC-17994-1}{here}. However, the DDS communications libraries are proprietary and are not open-sourced---they are included in the requestable executable, but cannot be independently distributed or compiled from source. However, a Guest Science commanding tool mimicking actual functionality is documented \href{https://github.com/nasa/astrobee_android/blob/master/running_gs_app.md#4-guest-science-commanding}{here}. This tool can also be launched via:
+GDS is able to issue customized Guest Science commands which pass off strings to a Java/rosjava interface. These Guest Science commands can then trigger any arbitrary set of instructions (written in Java) that the user is interested in. Additionally, GDS provides a GUI environment for issuing commands, receiving data from the Astrobee robots, and performing other commanding tasks. It is the default commanding environment for Astrobee.
+
+The GDS code is open-sourced \href{https://github.com/nasa/astrobee_gds/}{here}. An open-source binary can be requested (with application) \href{https://software.nasa.gov/software/ARC-17994-1}{here}. However, the DDS communications libraries are proprietary and are not open-sourced---they are included in the requestable executable, but cannot be independently distributed or compiled from source. A Guest Science commanding tool mimicking actual functionality is documented \href{https://github.com/nasa/astrobee_android/blob/master/running_gs_app.md#4-guest-science-commanding}{here}. This tool can also be launched via:
 
 \begin{markdown}
 ~~~~
@@ -1055,16 +1058,25 @@ rosrun gds_helper gds_simulator.py
 ~~~~
 \end{markdown}
 
-Commanding Astrobee outside of GDS and the Astrobee Android environment is somewhat more ad hoc. The steps in the following subsection provide one set of procedures for commanding Astrobee tests via rospy/roscpp on a command-line level. A few options for running tests are to incorporate high-level logic into a main test script, or to embed this logic directly in a coordinating node(s), possibly launched by a main launch file. As an example:
+GDS use requires:
 \begin{itemize}
-    \item Main Test Script (e.g., \texttt{main.py}) : The entrypoint to running other tests, this script can perform high-level coordination with ROS. A simple Python script that starts nodes and communicates on desired topics.
-    \item Main Launch File (e.g., \texttt{main.launch}) : The main launch file, launching the desired ROS nodes. A ROS launch file that starts nodes and communicates on desired topics, and may mimic the cascade of launch files shown in Section 4.
+\item An Astrobee Android APK (containing code to process Guest Science commands).
+\item An Astrobee Android processor (HLP) or emulator.
+\item The GDS software, or the \texttt{gds\_helper} tool if working in simulation.
+\item The Astrobee Flight Software (running on the robot or in simulation).
+\end{itemize}
+As mentioned in methods 1 and 2 above, many approaches can be taken to either use the Astrobee Android environment extensively or minimally. Foregoing Astrobee Android altogehter, one can also use the command line approach of method 3 with the main advantage of avoiding interaction with two separate development environments (Astrobee Android on the HLP and Ubuntu on the MLP/LLP) and the additional complications of testing GDS commands. 
+
+
+\subsection{A Sample Simulation Test, using Command Line}
+
+The steps in this subsection provide one set of procedures for commanding Astrobee tests via rospy/roscpp on a command-line level (method 3). A few options for running tests are to incorporate high-level logic into a main test script, or to embed this logic directly in a coordinating node(s), possibly launched by a main launch file. As an example:
+\begin{itemize}
+\item Main Test Script (e.g., \texttt{main.py}) : The entrypoint to running other tests, this script can perform high-level coordination with ROS. A simple Python script that starts nodes and communicates on desired topics.
+\item Main Launch File (e.g., \texttt{main.launch}) : The main launch file, launching the desired ROS nodes. A ROS launch file that starts nodes and communicates on desired topics, and may mimic the cascade of launch files shown in Section 4.
 \end{itemize}
 
-
-\subsection{A Sample Simulation Test}
-
-Really, the end goal is to communicate with the desired node(let)s on the right topics at the right times. There will be multiple ways to accomplish this, but one sample procedure is provided here that has previously been demonstrated in simulation and on Astrobee ground hardware.
+Really, the end goal is to communicate with the desired node(let)s on the right topics at the right times. There will be multiple ways to accomplish this, but one sample procedure is provided here that has previously been demonstrated in simulation and on Astrobee ground hardware. Another commanding API called the Astrobee Science Application Package (ASAP) using method 2 is under development by MIT and collaborators and will be documented in a future release of this guide.
 
 \begin{enumerate}
     \item Launch Astrobee, including environment setup (Main Launch File). Incorporate any custom nodes into the launch sequence. In this example, a custom node is created called \texttt{my\_ctl\_node} and is launched using a modified \texttt{sim\_info\_plan.launch}.
@@ -1095,27 +1107,27 @@ rosrun test_session_tools main.py -run 0
 
 \subsubsection{Data Recording}
 
-Simulation data recording is as easy as using ROS' \texttt{rosbag} tool. See the rosbag \href{http://wiki.ros.org/rosbag}{documentation} for selecting the desired topics to save. Also consult the Astrobee Operations Manual.
+Simulation data recording is as easy as using ROS' \texttt{rosbag} tool. See the rosbag \href{http://wiki.ros.org/rosbag}{documentation} for selecting the desired topics to save. 
 
 \subsection{A Sample Hardware Test}
 
-There are additional considerations when running a hardware test, though the basic test structure above will work and has been demonstrated in a ground test environment. See the Astrobee Operations Manual for sample ground test procedures. A future revision of this guide will include a more detailed sample hardware demonstration.
+There are additional considerations when running a hardware test, though the basic test structure above will work and has been demonstrated in a ground test environment. A future revision of this guide will include a more detailed sample hardware demonstration using method 2 and the ASAP interface.
 
 \subsubsection{Data Recording}
 
-Hardware data recording can either be performed similar to simulation using rosbag and copied over (e.g., via \texttt{rsync}), or via NASA's Ground Data Station (GDS) GUI.
+Hardware data recording can either be performed similar to simulation using rosbag and copied over (e.g., via \texttt{rsync}), or via NASA's Ground Data Station (GDS) GUI. GDS provides the option of creating recording profiles with specified topics on hardware that are manually activated. However, it is also possible to directly use \texttt{rosbag} to trigger topic recording at test time. Such an approach is under development for the Astrobee Science Application Package (ASAP) interface and will be documented in a future version of this guide.
 \\
 
-\textbf{rosbag}: rosbag can be used like in simulation. This can be done through an \texttt{ssh} to Astrobee, or by setting up a proper ROS node that issues rosbag locally on the Astrobee processors via the ROS Python or C++ interface. Consult the Astrobee Operations Manual for more details.
+\textbf{rosbag}: rosbag can be used like in simulation. This can be done through an \texttt{ssh} to Astrobee, or by setting up a proper ROS node that issues rosbag locally on the Astrobee processors via rospy or roscpp, for example.
 
-On hardware, Astrobee also has a desired data storage directory. Consult the Astrobee Ops team for the current location of this directory, which can be automatically synced from ISS testing, for example.
+On hardware, Astrobee also has a desired data storage directory. Consult the Astrobee Ops team for the current location of this directory, which can be automatically synced following ISS testing.
 \\
 
 \textbf{GDS}: GDS can be used, which uses DDS for communications. Example profile config files are found in \texttt{\$SOURCE\_PATH/astrobee/gds\_configs/DataToDisk/}. These are placed in \texttt{\$GDS/ControlStationConfig/DataToDisk/} where the computer running GDS will display this as a recording option in the GDS GUI. These topics can then be selected for automatic download to the GDS computer from the robot.
 
-\subsection{Notes for ISS Integration}
+\subsection{Integration for ISS Hardware Testing}
 
-There are additional considerations if AFS code is eventually destined for testing on the Astrobees onboard the ISS: how will code be delivered; how can Astrobee be operated remotely; how can data be retrieved? The answers to these questions are currently being resolved as Astrobee enters some of its first on-orbit GNC test sessions in the near future.
+There are additional considerations if AFS code is eventually destined for testing on the Astrobees onboard the ISS: how will code be delivered; how should tests be structured with limited situational awareness; what safety considerations should be considered? Some of the main considerations are detailed here; a future version of this guide will include additional detail.
 
 \subsubsection{ISS Layout}
 
@@ -1133,13 +1145,14 @@ The ISS environment has a unique layout, and operations in the Japanese Experime
 
 \subsubsection{Code Delivery and Upload}
 
-Modifications to AFS intended for eventual use on ISS must be packaged as debians, the preferred method of installing and removing packages for the MLP and LLP. Section 3 has brief details on what is required to produce a debian package. In short, any external dependencies must have custom debians created, following the format used in \texttt{scripts/setup/debians}. Source code changes that have been integrated into Astrobee's build system benefit from an existing debian creation system, which uses the \texttt{debian} directory to perform packaging. Note that, as usual, cross-compilation instructions (Section 3) must be followed if the Astrobee ARM processors are the final goal for compiled code.
+Modifications to AFS intended for eventual use on ISS must be packaged as debians, the preferred method of installing and removing packages for the MLP and LLP. Section 3 has brief details on what is required to produce a debian package. In short, any external C++ dependencies must have custom debians created (or be installed in a single debian with flight software additions), following the format used in \texttt{scripts/setup/debians}. Source code changes that have been integrated into Astrobee's build system benefit from an existing debian creation system, which uses the \texttt{debian} directory to perform packaging. Note that, as usual, cross-compilation instructions (Section 3) must be followed if the Astrobee ARM processors are the final goal for compiled code.
 
 External library debians and a single AFS revision debian can be used to installed cross-compiled build products on the Astrobee robots. This process will also work for the Astrobee ground units; however, consult the Astrobee Ops team before making any final hardware deployment plans.
 
-\subsection{Integration with GDS}
+\subsubsection{Integration with GDS}
 
-If using the default Astrobee Android route, GDS integration is as simple as creating custom commands for the Guest Science interface and receiving them properly from any APK code. However, if planning to run AFS code directly on the MLP/LLP it is necessary to intercept custom commands for use on the MLP/LLP. At present, this process is still being finalized; a future revision of this guide will include further detail.
+If using an Astrobee Android command method (methods 1 and 2), GDS integration is as simple as creating custom commands for the Guest Science interface and receiving them properly from any APK code. A future version of this guide will include further detail based on ISS test experience.
+
 \newpage
 \vspace{4cm}
 \begin{figure}[hb!]
@@ -1413,25 +1426,8 @@ The latency in the USB connection between the VN-100 IMU and the processor must 
 
 
 \clearpage
-\section{ROS Tips}
-
-These are some useful ROS tips that will be updated from time-to-time in future guide revisions.
-
-\begin{itemize}
-    \item Adding and removing ROS packages is often made very simple since packages are commonly packaged as debians and made available via apt. The typical naming convention is \begin{markdown}
-	sudo apt-get install ros-DISTRIBUTION-PACKAGE_NAME
-	
-	sudo apt-get install ros-kinetic-rqt-logger-level
-\end{markdown}
-
-Make sure to run a \texttt{rosdep install} to get any missing packages that the new package depends on.
-
-\item Occasionally, rostime will \textit{not} work at all after a shutdown of the Astrobee sim. This is a hard error to catch, and can be solved by restarting \texttt{roscore}.
-\end{itemize}
-
-\clearpage
-\section{From forces and torques to commanded nozzle openings }\label{appendix:D}
-This section presents a summary of the operations carried out by the Astrobee mixer, which is programmed in Simulink:
+\section{FAM: From Forces and Torques to Commanded Nozzle Openings}\label{appendix:D}
+This section presents a summary of the operations carried out by the Astrobee mixer, which is programmed in Simulink and detailed in Section \ref{sec:fam}.
 \begin{itemize}
 \item The commanded forces and torques, $\tau$ and $f$ are converted to thrust per nozzle $T_N$
 \begin{equation}
@@ -1459,7 +1455,7 @@ Number, name & Speed \\
 
 \item For each set of 6 nozzles, (i = 1 to 6 and 7 to 12), the following operations are carried out
 \begin{itemize}
-    \item $\frac{\sum\frac{ T_N_i}{  C_d_i}}{N^2}$ is mapped to $Cdp$ using a lookup table. $C_d$ is the discharge coefficient. The calculation of this table can be found under \begin{markdown}
+    \item $\frac{\sum\frac{ T_{N_i}}{  C_{d_i}}}{N^2}$ is mapped to $Cdp$ using a lookup table. $C_d$ is the discharge coefficient. The calculation of this table can be found under \begin{markdown}
     gnc/matlab/fsw_model/fam_force_allocation_module_prep.m     \end{markdown}
         where $d$: impeller diameter\\
 $N$: impeller speed\\
@@ -1474,7 +1470,7 @@ $\rho$ : Air density\\
 
 \item The commanded area per nozzle is found as
 \begin{equation}
-A_i = \frac{T_N_i}{2\times\Delta P \times C_d_i^2}
+A_i = \frac{T_{N_i}}{2\times\Delta P \times C_{d_i}^2}
 \end{equation}
 \item Then, the commanded nozzle opening
 \begin{equation}
@@ -1493,12 +1489,28 @@ $L$: Flap length\\
 $S_i$: Commanded nozzle opening\\
 $\theta_i$: Commanded nozzle opening angle. The maximum allowed nozzle opening is about 79.91 $\degree$, and the lowest is 15.68 $\degree$\\
 After checking that it lies within the limits, i.e, if $\theta<\theta_{\textrm{min}}$, $\theta = \theta_{\textrm{min}}$ and if $\theta>\theta_{\textrm{max}}$, $\theta = \theta_{\textrm{max}}$, the commanded angles are sent off to pwm to convert to servo commands.\\
-\textbf{The commanded $\theta$s are mapped on a scale of $0$ to $255$ and published at `hw/pmc/nozzle\_positions'}
+
+\textbf{The commanded $\theta$s are mapped on a scale of $0$ to $255$ and published at \texttt{hw/pmc/nozzle\_positions}.}
 \end{itemize}
 \smallskip
-
-
-
-
 \end{itemize}
+
+
+\clearpage
+\section{ROS Tips}
+
+These are some useful ROS tips that will be updated from time-to-time in future guide revisions.
+
+\begin{itemize}
+\item Adding and removing ROS packages is often made very simple since packages are commonly packaged as debians and made available via apt. The typical naming convention is \begin{markdown}
+sudo apt-get install ros-DISTRIBUTION-PACKAGE_NAME
+
+sudo apt-get install ros-kinetic-rqt-logger-level
+\end{markdown}
+
+Make sure to run a \texttt{rosdep install} to get any missing packages that the new package depends on.
+
+\item Occasionally, rostime will \textit{not} work at all after a shutdown of the Astrobee sim. This is a hard error to catch, and can be solved by restarting \texttt{roscore}.
+\end{itemize}
+
 \end{document}
