@@ -1,5 +1,7 @@
 # a-brief-guide-to-astrobee
 
+**Note: some of the installation instructions are now out-of-date since Astrobee's migration to `catkin` for the build system. For up-to-date installation instructions, please consult Astrobe's latest [install instructions](https://nasa.github.io/astrobee/html/md_INSTALL.html).**
+
 This is the latest available version of "A Brief Guide to Astrobee's Flight Software," a guide to modifying Astrobee's Flight Software source code to incorporate GNC and autonomy modifications. The Astrobee Flight Software (AFS) is written by NASA Ames and is available [here](https://github.com/nasa/astrobee); this document was originally produced by members of the MIT Space Systems Lab and the Ventura group at Instituto Superior Técnico to complement the AFS documentation.
 
 Feel free to make pull requests with edits to the main TeX document. Let the authors know if you are planning to create new documents based on this material and provide a citation back to this document!
